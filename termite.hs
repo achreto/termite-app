@@ -121,15 +121,15 @@ main = do
     prog <- getProgName
     config@Config{..} <- case getOpt Permute options args of
                               (flags, [], []) -> return $ foldr addOption defaultConfig flags
-                              _ -> fail $ usageInfo ("Usage: " ++ prog ++ " [OPTION...]") options 
+                              _ -> error $ usageInfo ("Usage: " ++ prog ++ " [OPTION...]") options
     let numactions = (if' confDoSynthesis 1 0) + (if' confDoCompile 1 0) + (if' confDoCGen 1 0) + (if' confDoHGen 1 0) + (if' confDoBoogie 1 0)
-    when (numactions /= 1) $ fail "Exactly one of -c, -s, -g, -h and -b options must be given"
+    when (numactions /= 1) $ error "Exactly one of -c, -s, -g, -h and -b options must be given"
 
     (modules, spec) <- parseTSL confTSLFile confImportDirs (not confDoBoogie && not confNoBuiltins) (confDoCGen == False && confDoHGen == False  && confDoBoogie == False)
     createDirectoryIfMissing False "tmp"
     writeFile "tmp/output.tsl" $ P.render $ pp spec
     case validateSpec spec of
-         Left e  -> fail $ "validation error: " ++ e
+         Left e  -> error $ "validation error: " ++ e
          Right _ -> return ()
     case (confDoCGen, confDoHGen) of
          (False, False) -> compileAndSynthesise config spec
@@ -139,18 +139,18 @@ main = do
 compileAndSynthesise :: Config -> Spec -> IO ()
 compileAndSynthesise config@Config{..} spec = do
     spec' <- case flatten spec of
-                  Left e  -> fail $ "flattening error: " ++ e
+                  Left e  -> error $ "flattening error: " ++ e
                   Right s -> return s
     writeFile "tmp/output2.tsl" $ P.render $ pp spec'
     case validateSpec spec' of
-         Left e  -> fail $ "flattened spec validation error: " ++ e
+         Left e  -> error $ "flattened spec validation error: " ++ e
          Right _ -> return ()
     -- when (confDoASL config) $ writeFile "output.asl"  $ P.render $ spec2ASL ispec
 
     if' confDoBoogie
         (do let ispec = specXducers2Internal spec'
             case spec2Boogie ispec of
-                 Left e  -> fail e
+                 Left e  -> error e
                  Right d -> writeFile (dropExtensions confTSLFile ++ ".bpl") (render d))
         (CI.withManagerIODefaults $ \m -> do
             let ispecFull = spec2Internal spec'
@@ -171,7 +171,7 @@ compileAndSynthesise config@Config{..} spec = do
 genCCode :: (M.Map FilePath [SpecItem], Spec) -> String -> Bool -> IO ()
 genCCode (modules, spec) f headeronly = 
     case M.lookup f modules of
-         Nothing    -> fail $ "File " ++ f ++ " not found in the input specification"
+         Nothing    -> error $ "File " ++ f ++ " not found in the input specification"
          Just items -> let ?spec = spec in 
                        let hname = dropExtensions f ++ ".h"
                            cname = dropExtensions f ++ ".c"
